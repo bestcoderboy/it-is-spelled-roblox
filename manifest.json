@@ -1,0 +1,13 @@
+{
+  "name": "it is spelled Roblox",
+  "description": "fixes Roblox misspellings",
+  "version": "1.0.3",
+  "manifest_version": 3,
+  "content_scripts": [{
+    "js": ["content.js"],
+    "matches": ["https://*/*"]
+  }],
+  "permissions": [
+    "tabs"
+  ]
+}
