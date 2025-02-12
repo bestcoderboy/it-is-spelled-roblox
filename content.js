@@ -1,54 +1,169 @@
 // Copyright 2024 BestSpyBoy (bestcoderboy)
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Licensed under the Apache License, Version 2.0
 
-// ----------------------------------------------------------
+const CORRECT_SPELLING = "Roblox";
 
-// this is the objectively correct spelling
-const correctSpelling = "Roblox"
-const incorrectVersions = [
-    "Rōblox", // swear this is literally just VisualPlugin
-    "ROBLOX",  // used to be this but it's incorrect now
-    "roblox" // just lazy
-]
+// Advanced pattern matching system
+class RobloxMatcher {
+    constructor() {
+        // Base patterns for common misspellings
+        this.patterns = [
+            // Case variations
+            /\bROBLOX\b/g,
+            /\broblox\b/g,
+            /\bRōblox\b/g,
+            /\bROBLOX\b/g,
+            /\broBLOX\b/g,
+            
+            // Common typos
+            /\bRoblax\b/g,
+            /\bRoblux\b/g,
+            /\bRobleox\b/g,
+            /\bRobelox\b/g,
+            /\bRoblocs\b/g,
+            /\bRoblocks\b/g,
+            /\bRobox\b/g,
+            /\bRobloz\b/g,
+            
+            // Intentional variations
+            /\bR[o0]bl[o0]x\b/gi,
+            /\bR[oō0]bl[oō0]x\b/gi,
+            /\bR[o0θ]bl[o0θ]x\b/gi,
+            
+            // Stylized versions
+            /\bꋪꄲ꒝꒒ꄲꉧ\b/g,
+            /\b尺ㄖ乃ㄥㄖ乂\b/g,
+            /\b【R】【O】【B】【L】【O】【X】\b/g,
+            
+            // Common concatenations
+            /\bRBLX\b/gi,
+            /\bRBX\b/gi,
+            
+            // Stretched versions
+            /\bR+[Oo0]+[Bb]+[Ll]+[Oo0]+[Xx]+\b/g
+        ];
 
-// function to fix the text given by replacing incorrect versions of Roblox
-function fixRobloxText(text) {
-    incorrectVersions.forEach((incorrectSpelling) => {
-        text = text.replaceAll(incorrectSpelling, correctSpelling)
-    })
-    return text
+        // Combine patterns for performance
+        this.combinedPattern = new RegExp(this.patterns.map(p => p.source).join('|'), 'gi');
+        
+        // Levenshtein distance threshold for fuzzy matching
+        this.DISTANCE_THRESHOLD = 2;
+    }
+
+    // Levenshtein distance calculation for fuzzy matching
+    levenshteinDistance(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+
+        const matrix = Array(b.length + 1).fill().map(() => Array(a.length + 1).fill(0));
+
+        for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
+        for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+
+        for (let j = 1; j <= b.length; j++) {
+            for (let i = 1; i <= a.length; i++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                matrix[j][i] = Math.min(
+                    matrix[j - 1][i] + 1,
+                    matrix[j][i - 1] + 1,
+                    matrix[j - 1][i - 1] + cost
+                );
+            }
+        }
+
+        return matrix[b.length][a.length];
+    }
+
+    // Smart text analysis
+    analyzeAndFix(text) {
+        // Quick check for any obvious matches
+        if (!text.match(/r.*b.*l.*x/i)) return text;
+
+        // First pass: direct pattern replacement
+        let result = text.replace(this.combinedPattern, CORRECT_SPELLING);
+
+        // Second pass: fuzzy matching for words that might be Roblox
+        const words = result.split(/\b/);
+        return words.map(word => {
+            // Skip short words and obvious non-matches
+            if (word.length < 4 || !/[rb]/i.test(word)) return word;
+            
+            // Check if this might be a Roblox variant
+            const normalized = word.toLowerCase();
+            if (this.levenshteinDistance(normalized, CORRECT_SPELLING.toLowerCase()) <= this.DISTANCE_THRESHOLD) {
+                // Additional context check to reduce false positives
+                if (normalized.includes('r') && normalized.includes('b') && normalized.includes('l')) {
+                    return CORRECT_SPELLING;
+                }
+            }
+            return word;
+        }).join('');
+    }
 }
 
-// tell me if i missed any text tags :)
-const textTags = [...document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, caption, span, a, strong, i, em, textarea, input, title, abbr, address, blockquote, cite, q, code, ins, pre, div, ul, ol, li, dl, dd, dt, del, sup, sub, small, b')];
+// Initialize matcher
+const robloxMatcher = new RobloxMatcher();
 
-// traverses the page to find all text tags
-function traverseTags() {
-    console.log("changing all tags!")
+// MutationObserver setup
+const observer = new MutationObserver((mutations) => {
+    const changedNodes = new Set();
+    
+    mutations.forEach(mutation => {
+        if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    changedNodes.add(node);
+                }
+            });
+        } else if (mutation.type === 'characterData') {
+            changedNodes.add(mutation.target.parentNode);
+        }
+    });
+    
+    processNodes(changedNodes);
+});
 
-    const deepNonEmptyTextNodes = el => [...el.childNodes].flatMap(e =>
-        e.nodeType === Node.TEXT_NODE && e.textContent.trim() ?
-            e : deepNonEmptyTextNodes(e)
+// Process text nodes with advanced matching
+function processTextNode(node) {
+    const oldText = node.nodeValue;
+    const newText = robloxMatcher.analyzeAndFix(oldText);
+    
+    if (oldText !== newText) {
+        node.nodeValue = newText;
+    }
+}
+
+// Process nodes efficiently
+function processNodes(nodes) {
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: (node) => {
+                return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+        }
     );
 
-    // iterates over all text on a page to fix misspellings of Roblox
-    textTags.forEach(tagNode => {
-        const textNodes = deepNonEmptyTextNodes(tagNode);
-        textNodes.forEach(node => node.nodeValue = fixRobloxText(node.nodeValue))
-    })
+    nodes.forEach(node => {
+        let currentNode;
+        while (currentNode = walker.nextNode()) {
+            processTextNode(currentNode);
+        }
+    });
 }
 
-// very performant and efficient!!!
-setInterval(traverseTags, 1000)
-traverseTags()
+// Initial processing
+processNodes(new Set([document.body]));
+
+// Start observing DOM changes
+observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+});
+
+// Cleanup function
+function cleanup() {
+    observer.disconnect();
+}
