@@ -1,7 +1,7 @@
 // Copyright 2024 BestSpyBoy (bestcoderboy)
 // Licensed under the Apache License, Version 2.0
 
-const CORRECT_SPELLING = "Roblox";
+const CORRECT_SPELLING = "RōBLOX";
 
 // Advanced pattern matching system
 class RobloxMatcher {
@@ -11,7 +11,7 @@ class RobloxMatcher {
             // Case variations
             /\bROBLOX\b/g,
             /\broblox\b/g,
-            /\bRōblox\b/g,
+            /\bRoblox\b/g,
             /\bROBLOX\b/g,
             /\broBLOX\b/g,
             
